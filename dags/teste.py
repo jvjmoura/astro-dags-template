@@ -12,6 +12,8 @@ import pendulum
 @aql.dataframe(task_id="python_1")
 def python_1_func():
     print("Funcinou!!")
+    print("obrigado por realizar a atividade")
+    
 
 default_args={
     "owner": "João Moura Jr,Open in Cloud IDE",
