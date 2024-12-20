@@ -13,6 +13,69 @@ import pendulum
 def python_1_func():
     return
 
+@aql.dataframe(task_id="python_2")
+def python_2_func():
+    from airflow import DAG
+    from airflow.utils.dates import days_ago
+    from airflow.operators.python import PythonOperator
+    from datetime import datetime, timedelta
+    import requests
+    
+    def fetch_fda_data(**kwargs):
+        """Consulta a API do OpenFDA para buscar informações sobre reclamações de medicamentos."""
+        base_url = "https://api.fda.gov/drug/event.json"
+        params = {
+            'search': 'patient.drug.medicinalproduct:"MEDICAMENTO_EXEMPLO"',
+            'limit': 10
+        }
+        
+        try:
+            response = requests.get(base_url, params=params)
+            response.raise_for_status()
+            data = response.json()
+            
+            # Exemplo de registro dos resultados no log
+            for record in data.get("results", []):
+                print(f"ID: {record.get('safetyreportid')}, Data: {record.get('receivedate')}, Reação: {record.get('patient', {}).get('reaction', [{}])[0].get('reactionmeddrapt')}")
+            
+            # Retorna os dados para outras tarefas na DAG (se necessário)
+            return data
+        except requests.exceptions.RequestException as e:
+            print(f"Erro ao consultar API FDA: {e}")
+            raise
+    
+    # Configuração padrão da DAG
+    default_args = {
+        'owner': 'airflow',
+        'depends_on_past': False,
+        'email': ['your_email@example.com'],
+        'email_on_failure': False,
+        'email_on_retry': False,
+        'retries': 1,
+        'retry_delay': timedelta(minutes=5),
+    }
+    
+    # Definição da DAG
+    with DAG(
+        dag_id='fda_drug_complaints',
+        default_args=default_args,
+        description='Consulta informações de reclamações de medicamentos na FDA.',
+        schedule_interval='0 23 L * *',
+        start_date=datetime(2025, 1, 1),
+        catchup=False,
+        tags=['FDA', 'medicamentos', 'consulta']
+    ) as dag:
+    
+        # Tarefa para consultar a API
+        fetch_fda_task = PythonOperator(
+            task_id='fetch_fda_data',
+            python_callable=fetch_fda_data
+        )
+    
+    # Define a ordem das tarefas na DAG
+    fetch_fda_task
+    
+
 default_args={
     "owner": "João Moura Jr,Open in Cloud IDE",
 }
@@ -29,5 +92,7 @@ default_args={
 )
 def teste2():
     python_1 = python_1_func()
+
+    python_2 = python_2_func()
 
 dag_obj = teste2()
